@@ -10,6 +10,10 @@ class Link:
     templated: Optional[bool] = None
     name: Optional[str] = None
 
+    def to_json_ld(self):
+        # TODO I think we can include the other data here too, but I'm not sure how. JSON-LD is supprisingly not very well documented, considering how widely used it seems to be.
+        return self.href
+
     def to_hal(self):
         hal = {'href': self.href}
         if self.templated is not None:
@@ -33,7 +37,7 @@ class Resource:
     nessesarilly limited to the "official" rel values; you may define your own as CURIEs if an 
     official rel can't be found. (See https://stateless.group/hal_specification.html)
 
-    At minimum, this should always contain a 'self' link.
+    It is strongly recommended to include at least a 'self' link and a 'type' link.
     """
 
     data: SimpleNamespace
@@ -67,6 +71,21 @@ class Resource:
             links.self = request.url
         return cls(links, *args, **kwargs)
     
+    def to_json_ld(self)->dict:
+        """
+        Convert this resource to its JSON Linked Data representation
+        """
+        json = {
+            **self.data.__dict__
+        }
+        if hasattr(self.links, 'self'):
+            link = self.links.self
+            json['@id'] = link.to_json_ld() if isinstance(link, Link) else [item.to_json_ld() for item in link]
+        if hasattr(self.links, 'type'):
+            link = self.links.type
+            json['@context'] = link.to_json_ld() if isinstance(link, Link) else [item.to_json_ld() for item in link]
+
+
     def to_hal(self)->dict:
         """
         Convert this resource to its Hypertext Application Language representation
@@ -84,6 +103,9 @@ class Resource:
                 for key, resource in self.embedded.__dict__.items()
             }
         return hal
+    
+    def to_microdata(self):
+        pass # TODO figure out the best way to do this
 
     def link(self, rel: str, link: Union[Link,str], *args, **kwargs):
         """
